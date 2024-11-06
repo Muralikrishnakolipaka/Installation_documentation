@@ -1,0 +1,99 @@
+Add below properties in Custom core-site
+
+
+    fs.s3a.access.key                 :     minioadmin
+    fs.s3a.block.size                 :     512M
+    fs.s3a.buffer.dir                 :     ${hadoop.tmp.dir}/s3a
+    fs.s3a.committer.magic.enabled    :     false
+    fs.s3a.committer.name             :     directory
+    fs.s3a.committer.staging.abort.pending.uploads : true
+    fs.s3a.committer.staging.conflict-mode : append
+    fs.s3a.committer.staging.tmp.path     :  /tmp/staging
+    fs.s3a.committer.staging.unique-filenames : true
+    fs.s3a.connection.establish.timeout : 5000
+    fs.s3a.connection.ssl.enabled : false
+    fs.s3a.connection.timeout : 200000
+    fs.s3a.endpoint : http://minio1:9001
+    fs.s3a.impl : org.apache.hadoop.fs.s3a.S3AFileSystem
+    fs.s3a.path.style.access : true
+    fs.s3a.secret.key : "minio-secret-key-CHANGE-ME"
+    ha.zookeeper.quorum : datalake.inndata.internal:2181,datalake1.inndata.internal:2181,datalake2.inndata.internal:2181
+    hadoop.proxyuser.hdfs.groups : *
+    hadoop.proxyuser.hdfs.hosts : *
+    hadoop.proxyuser.hive.groups : *
+    hadoop.proxyuser.hive.hosts : datalake.inndata.internal
+    hadoop.proxyuser.root.groups : *
+    hadoop.proxyuser.root.hosts : datalake.inndata.internal
+    hadoop.proxyuser.yarn.hosts : datalake.inndata.internal,datalake1.inndata.internal
+    mapred.maxthreads.generate.mapoutput : 2 # Num threads to write map outputs
+    mapred.maxthreads.partition.closer : 0
+    mapreduce.fileoutputcommitter.algorithm.version : 2
+    mapreduce.job.reduce.slowstart.completedmaps : 0.99
+    mapreduce.reduce.shuffle.input.buffer.percent : 0.9
+    mapreduce.reduce.shuffle.merge.percent : 0.9
+    mapreduce.reduce.speculative : false
+    mapreduce.task.io.sort.factor : 999
+    mapreduce.task.sort.spill.percent : 0.9
+
+
+Custom-hive-site :
+
+hive.blobstore.use.blobstore.as.scratchdir : true
+hive.exec.input.listing.max.threads : 50
+hive.load.dynamic.partitions.thread : 25
+hive.metastore.fshandler.threads : 50
+hive.mv.files.threads : 40
+mapreduce.input.fileinputformat.list-status.num-threads : 50
+fs.s3a.path.style.access : true
+
+Name_node high availability :
+
+Custom Yarn site :
+
+yarn.resourcemanager.cluster-id      : yarn-cluster
+yarn.resourcemanager.ha.automatic-failover.zk-base-path  : /yarn-leader-election
+yarn.resourcemanager.ha.rm-ids  : rm1,rm2
+yarn.resourcemanager.hostname.rm1 : datalake.inndata.internal
+yarn.resourcemanager.hostname.rm2 : datalake1.inndata.internal
+yarn.resourcemanager.resource-tracker.address.rm1 : datalake.inndata.internal:8025
+yarn.resourcemanager.resource-tracker.address.rm2 : datalake1.inndata.internal:8025
+yarn.resourcemanager.webapp.address.rm1 : datalake.inndata.internal:8088
+yarn.resourcemanager.webapp.address.rm2 : datalake1.inndata.internal:8088
+yarn.resourcemanager.webapp.https.address.rm1 : datalake.inndata.internal:8090
+yarn.resourcemanager.webapp.https.address.rm2 : datalake1.inndata.internal:8090
+yarn.timeline-service.entity-group-fs-store.app-cache-size : 10 
+yarn.timeline-service.http-authentication.proxyuser.root.groups : *
+yarn.timeline-service.http-authentication.proxyuser.root.hosts : datalake.inndata.internal
+
+
+
+Custom hdfs-site :
+
+dfs.client.failover.proxy.provider.datalake : org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider
+dfs.ha.automatic-failover.enabled  :    true
+dfs.ha.namenodes.datalake  :  nn1,nn2
+dfs.internal.nameservices  : datalake
+dfs.namenode.http-address.datalake.nn1  : datalake.inndata.internal:50070
+dfs.namenode.http-address.datalake.nn2  : datalake1.inndata.internal:50070
+dfs.namenode.https-address.datalake.nn1 : datalake.inndata.internal:50470
+dfs.namenode.https-address.datalake.nn2 : datalake1.inndata.internal:50470
+dfs.namenode.rpc-address.datalake.nn1 : datalake.inndata.internal:8020
+dfs.namenode.rpc-address.datalake.nn2 : datalake1.inndata.internal:8020
+dfs.namenode.shared.edits.dir  : qjournal://datalake2.inndata.internal:8485;datalake.inndata.internal:8485;datalake1.inndata.internal:8485/datalake
+dfs.nameservices : datalake
+hadoop.proxyuser.hue.groups : *
+hadoop.proxyuser.hue.hosts : *
+
+
+
+
+
+defaultFS 
+
+Hive Metastore Warehouse directory     : /warehouse/tablespace/managed/hive
+Hive Metastore Warehouse External directory :  /warehouse/tablespace/external/hive
+
+
+core-site.xml 
+
+fs.defaultFS  :  s3a://<bucket_name>:9001

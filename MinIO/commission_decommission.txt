@@ -1,0 +1,79 @@
+Minio add pool and Decommission
+
+Prerequisites:
+1.Sequential Hostnames
+  example : 
+
+  minio5.example.com
+  minio6.example.com
+  minio7.example.com
+  minio8.example.com
+2.Time Synchronization
+
+Backup cluster settings 
+
+  mc admin cluster bucket export alias
+
+single server pool host names 
+
+  minio1.example.com   minio3.example.com
+  minio2.example.com   minio4.example.com
+
+New server pool hostnames :
+
+  minio5.example.com  minio7.example.com   
+  minio6.example.com  minio8.example.com
+ 
+All hosts have eight locally-attached drives with sequential mount-points
+
+   /mnt/disk1/minio  /mnt/disk5/minio
+   /mnt/disk2/minio  /mnt/disk6/minio
+   /mnt/disk3/minio  /mnt/disk7/minio
+   /mnt/disk4/minio  /mnt/disk8/minio
+
+Add the below line in /etc/default/minio (all nodes)
+
+MINIO_VOLUMES="https://minio{1...4}.example.net:9000/mnt/disk{1...4}/minio https://minio{5...12}.example.net:9000/mnt/disk{1...8}/minio"
+
+following commands on each node simultaneously in the deployment to restart the MinIO service:
+
+  sudo systemctl restart minio.service
+  sudo systemctl status minio.service
+  journalctl -f -u minio.service
+
+Check info 
+
+   mc admin info alias
+
+---------------------------------------------<<<<<<<<<<<<<<>>>>>>>>>>-----------------------------------------------------
+
+
+Decommission :
+
+
+Prerequisites
+Backup minio cluster 
+
+ mc admin cluster bucket export
+
+Check the MinIO Deployment Topology
+
+   mc admin decommission status alias
+
+Start decommission
+
+   mc admin decommission start alias/ https://minio-{01...04}.example.net:9000/mnt/disk{1...4}/minio
+
+Monitor the Decommissioning Process
+   
+   mc admin decommission status myminio
+
+Remove the Decommissioned Pool from the Minio config file 
+
+   cat /etc/default/minio | grep "MINIO_VOLUMES"
+
+Restart Minio serive :
+
+   sudo systemctl restart minio.service
+   sudo systemctl status minio.service
+journalctl -f -u minio.service

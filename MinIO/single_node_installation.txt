@@ -1,0 +1,108 @@
+step : 1 # Download binary file
+
+ wget https://dl.min.io/server/minio/release/linux-amd64/minio
+ chmod +x minio
+
+Step : 2 # Move the binary to the /usr/local/bin directory.
+
+ mv minio /usr/local/bin
+
+ Check Verify the installation
+
+  minio --version
+
+step : 3 # Group=minio-user: The Linux system group the Minio daemon will run as.
+
+ groupadd -r minio-user
+
+step : 4 # User=minio-user: The Linux system user the MinIO daemon will run as.
+
+ useradd -M -r -g minio-user minio-user
+
+step : 5 # Create 1 directory on your local host where the new disk was just mounted, in this case /mnt/data.
+
+mkdir -p /mnt/data/disk1
+
+step : 6 # chown the directory with the MinIO user and group.
+
+ chown minio-user:minio-user /mnt/data/disk1
+
+step : 7 # Create Enviroment service file. Update this file  /etc/default/minio with the following content
+
+  vi /etc/default/minio
+
+  MINIO_VOLUMES="/mnt/data/disk1"  #Minio data mount.
+  MINIO_ROOT_USER=minioadmin       #Minio root user.
+  MINIO_ROOT_PASSWORD=minio
+  MINIO_OPTS="--console-address :9090" #Console address.
+  MINIO_BROWSER_REDIRECT_URL="https://minio.example.in" #console address(Web URL)
+  MINIO_SERVER_URL="https://minio.api.in" #Server address.
+
+or (IP _address)
+  MINIO_VOLUMES="/mnt/data/dsik1"
+  MINIO_OPTS="--console-address :9001"
+  MINIO_ROOT_USER=minioadmin
+  MINIO_ROOT_PASSWORD=minio
+  MINIO_SERVER_URL="http://127.0.0.1:9000"
+  
+step : 8 # Create a service file. create a SystemD file at /etc/systemd/system/minio.service with the following contents.
+
+ vi /etc/systemd/system/minio.service
+
+ [Unit]
+  Description=MinIO
+  Documentation=https://docs.min.io
+  Wants=network-online.target
+  After=network-online.target
+  AssertFileIsExecutable=/usr/local/bin/minio
+
+  [Service]
+  WorkingDirectory=/usr/local
+
+  User=minio-user
+  Group=minio-user
+  ProtectProc=invisible
+
+  EnvironmentFile=-/etc/default/minio
+  ExecStartPre=/bin/bash -c "if [ -z \"${MINIO_VOLUMES}\" ]; then echo \"Variable MINIO_VOLUMES not set in /etc/default/minio\"; exit 1; fi"
+  ExecStart=/usr/local/bin/minio server $MINIO_OPTS $MINIO_VOLUMES
+
+  # Let systemd restart this service always
+  Restart=always
+
+  # Specifies the maximum file descriptor number that can be opened by this process
+  LimitNOFILE=65536
+
+  # Specifies the maximum number of threads this process can create
+  TasksMax=infinity
+
+  # Disable timeout logic and wait until process is stopped
+  TimeoutStopSec=infinity
+  SendSIGKILL=no
+
+  [Install]
+  WantedBy=multi-user.target
+
+  # Built for ${project.name}-${project.version} (${project.name})
+
+## start minio service
+
+systemctl start minio
+systemctl enable minio
+systemctl status minio
+
+in minio server run the below command :
+
+./mc alias list   --->> check alais name 
+./mc admin prometheus generate Internal_MinIO
+Copy the out put and paste it in prometheus config file.
+
+Add below enviroment Variable's in minIO config file:
+
+MINIO_PROMETHEUS_AUTH_TYPE=public
+MINIO_PROMETHEUS_JOB_ID=minio-job
+MINIO_PROMETHEUS_AUTH_TOKEN=eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJwcm9tZXRoZXVzIiwic3ViIjoibWluaW9hZG1pbiIsImV4cCI6NDg2NTY1NDY1OX0.mtO4cLFFQlH1zn8ZzGF2lCJ5fFlShR7m1bB8A_Hfvx7hu3i-jfsC40T5FsjUcrXhn47Jy6PlZVAuVd3yO42GAQ
+MINIO_PROMETHEUS_URL=http://10.10.5.95:9090
+
+Add above enviroment variable's in 3 node cluster.
+Then restart minio service.

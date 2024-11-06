@@ -1,0 +1,39 @@
+First we need to check Yarn queue name. In our enviroment set queue name default to Dev.
+
+RPC related error  :
+
+<property>
+     <name>ipc.maximum.data.length</name>
+     <value>134217728</value>
+</property>
+
+Changed the data length.
+
+login to hdfs user and run the below command 
+
+hadoop distcp -m 2 -update hdfs://<IP_address>:8020//data/employee s3a://test/
+
+-m = This can parallelize the data transfer and potentially speed up the process.
+-update or -skipcrccheck to optimize the copying process.
+hdfs://<IP_address>:8020/ = hdfs fs image 
+
+changes : 
+yarn --> Maximum container size reduce to 21Gb to 8GB 
+
+Yarn --> Capacity scheduler ---> add below property :
+yarn.scheduler.capacity.root.dev.maximum-am-resource-percent = 0.3
+------>
+yarn.scheduler.capacity.maximum-am-resource-percent=0.3 --> default value 0.2
+
+restart yarn services 
+
+sync in hive :
+
+ALTER table minio.sftp_check_test set location "s3a://data/sftp";
+msck repair table minio.sftp_check_test;
+select * from minio.sftp_check_test limit 10;
+
+Yarn kill application :
+
+yarn application -kill <application_id>
+

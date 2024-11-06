@@ -1,0 +1,113 @@
+MinIO Keycloak integration :
+
+Keycloak version : 25.0.1
+
+-------------->>>Download&extract tar.gz file<<<-----------------
+
+  wget https://github.com/keycloak/keycloak/releases/download/25.0.1/keycloak-25.0.1.tar.gz
+
+  tar -zxvf keycloak-25.0.1.tar.gz && cd keycloak-25.0.1
+
+------------>>>>>Production_setup<<<-----------------------------
+
+  For production open a vim conf/keycloak.conf configure databases name. for production setup requires a trustore certs.
+
+------------->>>>>Development_setup<<<------------------
+
+  cd keycloak-25.0.1/bin 
+  ./kc.sh start-dev
+
+  http://IP_ADRESS:8080
+
+-------------->>>>>Integrations<<<--------------------
+
+Configure MinIO for Keycloak Identity Management
+
+
+  Authenticate to the Keycloak administrative console and navigate to clients.
+
+  Select create client and follow the instructions to create a new Keycloak client for MinIO
+
+  client id  --->> set to unique identifier for MinIO 
+  client type --->> set to OpenID connect
+  Always display in console --->> Toggle to On
+  client authentication --->>Toggle to On
+  authentication flow --->> Toggle on Standard flow
+
+
+Keycloak deploys the client with a default set of configuration values. Modify these values as necessary for your Keycloak setup
+
+   root url -->> Set to minio_URL
+
+   home url -->> Set to the Realm you want MinIO to use (/realms/master/account/) minioURL
+
+  valid redirect uri -->> Set to minio_URL/*
+
+  keys -> use jwks url -->> Toggle to On
+
+  advanced -> advanced settings -> access token lifespan Set to time
+
+Create Client Scope for MinIO Client :
+
+ Navigate to the client scopes view and create a new client scope for MinIO authorization:
+
+   Name -->> Set to any recognizable name for the policy (minio-authorization)
+
+  include in token scope -->> Toggle to On
+
+Once created, select the scope from the list and navigate to mappers :
+
+   Select configure a new mapper
+
+   Select the Mapper Type -->> user attribute
+    
+   name -->> Set to any recognizable name for the mapping (minio-policy-mapper)
+   user attribute -->> Set to policy
+   token claim name -->> Set to policy
+   add to id token -->> Set to On
+   claim json type -->> Set to String
+   multivalued -->> Set to On  --->> This allows setting multiple policy values in the single claim
+   aggregate attribute values -->> Set to On
+
+Once created, assign the Client Scope to the MinIO client :
+
+
+   Navigate to clients and select the MinIO client.
+
+   Select client scopes, then select add client scope.
+
+   Select the previously created scope and set the assigned type to default.
+
+
+Apply the Necessary Attribute to Keycloak Users/Groups :
+
+    Navigate to users and select or create the User
+    credentials --->> Set the user password to a permanent value if not already set
+    attributes  -->> Create a new attribute with key policy and value of any policy (consoleAdmin)
+
+    navigate to groups and select or create the Group:
+
+    attributes --->>  Create a new attribute with key policy and value of any policy (consoleAdmin)
+
+
+Configure MinIO for Keycloak Authentication :
+
+
+    Add following properties in all minio config file  /etc/default/minio -->> repeat all nodes
+
+    MINIO_IDENTITY_OPENID_CONFIG_URL_PRIMARY_IAM="http://IP_ADDRESS:8080/realms/datalake/.well-known/openid-configuration"
+    MINIO_IDENTITY_OPENID_CLIENT_ID_PRIMARY_IAM="<Client_ID>"
+    MINIO_IDENTITY_OPENID_CLIENT_SECRET_PRIMARY_IAM="<Client_secret>"
+    MINIO_IDENTITY_OPENID_DISPLAY_NAME_PRIMARY_IAM="<DISPLAY_NAME"
+    MINIO_IDENTITY_OPENID_SCOPES_PRIMARY_IAM="openid,email,preferred_username"
+    MINIO_IDENTITY_OPENID_REDIRECT_URI_DYNAMIC_PRIMARY_IAM="on"
+
+
+Then Restart Minio service 
+
+    systemctl restart minio -->> repeat all nodes or simply run minio master by using following command
+
+    mc admin service restart <ALIAS_NAME>
+    
+Note: Ensure policy names in Keycloak match those in MinIO.
+

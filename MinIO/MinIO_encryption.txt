@@ -1,0 +1,172 @@
+# Secrets Made Easy with MinIO and HashiCorp Vault
+
+This guide provides step-by-step instructions for setting up MinIO with Key Encryption Service (KES) and HashiCorp Vault to manage secrets and enable secure communication and encryption for stored objects.
+
+## Table of Contents
+1. [Prerequisites](#prerequisites)
+2. [Setup KES](#setup-kes)
+3. [Setup Vault](#setup-vault)
+4. [Configure KES and Vault for TLS](#configure-kes-and-vault-for-tls)
+5. [Configure MinIO](#configure-minio)
+6. [Start KES Service](#start-kes-service)
+7. [Encrypt MinIO Buckets](#encrypt-minio-buckets)
+
+## Prerequisites
+- **Vault Version**: v1.10.4
+- **KES Version**: Version 2024-06-17T15-47-05Z
+
+Make sure to have the following tools and packages installed:
+- `tmux`
+- `gpg`
+- `wget`
+
+## Setup KES
+1. Create directories to store certificates and configuration files:
+   ```bash
+   mkdir -p /opt/kes/certs
+   mkdir -p /opt/kes/config
+   mkdir -p /opt/minio/certs
+# Download and install the KES binary
+```bash
+wget https://github.com/minio/kes/releases/download/v0.22.1/kes-linux-amd64
+chmod +x kes-linux-amd64
+mv kes-linux-amd64 /usr/local/bin/kes
+kes --version
+```
+# Setup Vault
+```bash
+tmux new -s vault
+```
+### Install GPG and HashiCorp Vault
+```bash
+apt update && apt install gpg
+wget -O- https://apt.releases.hashicorp.com/gpg | gpg --dearmor | sudo tee /usr/share/keyrings/hashicorp-archive-keyring.gpg >/dev/null
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list
+apt update && apt install vault
+```
+### Start Vault in development mode
+```bash
+vault server -dev -dev-listen-address="YOUR_IP_ADDRESS:8200"
+```
+### Set environment variables in .bashrc
+```bash
+export VAULT_ADDR='http://YOUR_IP_ADDRESS:8200'
+export VAULT_TOKEN="Your_token"
+```
+### Enable the KV secret engine and create a Vault AppRole
+vault secrets enable -path=kv kv
+vault auth enable approle
+
+### Create a policy file kes-policy.hcl with the following content:
+
+hcl
+Copy code
+path "kv/data/*" {
+    capabilities = ["create", "read"]
+}
+
+path "kv/metadata/*" {
+    capabilities = ["list", "delete"]
+}
+
+### Apply the policy and create a Vault role:
+
+bash
+vault policy write kes-policy kes-policy.hcl
+vault write auth/approle/role/kes-role token_num_uses=0 secret_id_num_uses=0 period=24
+vault write auth/approle/role/kes-role policies=kes-policy
+
+## Configure KES and Vault for TLS
+
+### Create TLS certificates for KES
+
+```bash
+kes identity new kes_server --key /opt/kes/certs/kes-server.key --cert /opt/kes/certs/kes-server.cert --ip "127.0.0.1" --dns localhost
+```
+### Create a TLS certificate for MinIO
+
+```bash
+kes identity new minio_server --key /opt/minio/certs/minio-kes.key --cert /opt/minio/certs/minio-kes.cert --ip "127.0.0.1" --dns localhost
+```
+### Obtain the MINIO_IDENTITY_HASH:
+```bash
+kes identity of /opt/minio/certs/minio-kes.cert
+```
+### Get VAULTAPPID and VAULTAPPSECRET:
+
+```bash
+vault read auth/approle/role/kes-role/role-id
+vault write -f auth/approle/role/kes-role/secret-id
+```
+### Create /opt/kes/config/kes-config.yaml with the following content
+
+```yaml
+Copy code
+address: 0.0.0.0:7373
+
+tls:
+  key: /opt/kes/certs/kes-server.key
+  cert: /opt/kes/certs/kes-server.cert
+
+policy:
+  minio:
+    allow:
+      - /v1/key/create/*
+      - /v1/key/generate/*
+      - /v1/key/decrypt/*
+    identities:
+      - MINIO_IDENTITY_HASH
+
+keystore:
+  vault:
+    endpoint: http://localhost:8200
+    engine: "kv/"
+    version: "v2"
+    approle:
+      id: "VAULTAPPID"
+      secret: "VAULTAPPSECRET"
+    retry: 15s
+    status:
+      ping: 10s
+```
+### Configure MinIO
+### Update /etc/default/minio with the following configurations
+```bash
+MINIO_KMS_KES_ENDPOINT=https://localhost:7373
+MINIO_KMS_KES_CERT_FILE=/opt/minio/certs/minio-kes.cert
+MINIO_KMS_KES_KEY_FILE=/opt/minio/certs/minio-kes.key
+MINIO_KMS_KES_CAPATH=/opt/kes/certs/kes-server.cert
+MINIO_KMS_KES_KEY_NAME=minio-backend-default-key
+```
+### Start KES Service
+```bash
+tmux new -s kes
+setcap cap_ipc_lock=+ep $(readlink -f $(which kes))
+kes server --auth=off --config=/opt/kes/config/kes-config.yaml
+```
+  Then Ctrl+b then d
+
+### Restart the MinIO service:
+
+```bash
+systemctl restart minio
+```
+### Set additional environment variables in .bashrc:
+
+```bash
+export KES_SERVER=https://127.0.0.1:7373
+export KES_CLIENT_KEY=/opt/minio/certs/minio-kes.key
+export KES_CLIENT_CERT=/opt/minio/certs/minio-kes.cert
+```
+# Encrypt MinIO Buckets
+### Create a bucket encryption key:
+
+```bash
+kes key create -k encrypted-bucket-key
+```
+### Create and configure a MinIO bucket for auto-encryption:
+```bash
+mc alias set datalake http://YOUR_IPADDRESS:9000 <username> <password>
+mc mb datalake/<bucketname>
+mc encrypt set SSE-KMS encrypted-bucket-key datalake/<bucketname>
+```
